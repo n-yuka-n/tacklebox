@@ -1123,7 +1123,7 @@ function parseOcrText(rawText) {
     .filter(l => l.length > 2 && !/^[\d\s\-\.\/\\|]+$/.test(l));  // 数字・記号のみ行は除外
 
   // 上位2行を結合（サイズやカラーを含めるため）
-  const name = nameLines.slice(0, 2).join(' ').trim();
+  const name = nameLines.slice(0, 5).join(' ').trim();
 
   return { maker, name: name || lines[0] || '' };
 }
