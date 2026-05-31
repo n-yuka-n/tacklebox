@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>タックルボックス</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1a6b3a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="タックルボックス">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #1a6b3a;
+      --primary-light: #2d8a52;
+      --accent: #f0a500;
+      --bg: #f4f4f4;
+      --card: #fff;
+      --text: #222;
+      --muted: #888;
+      --border: #e0e0e0;
+      --danger: #e53e3e;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 88px;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--primary);
+      color: #fff;
+      padding: 12px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 6px rgba(0,0,0,.25);
+    }
+    .header h1 { font-size: 17px; font-weight: 700; letter-spacing: .5px; }
+    .icon-btn {
+      background: rgba(255,255,255,.18);
+      border: none; color: #fff;
+      width: 36px; height: 36px;
+      border-radius: 50%; font-size: 17px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ── Offline banner ── */
+    .offline-banner {
+      background: #f59e0b; color: #fff;
+      text-align: center; padding: 5px;
+      font-size: 12px; font-weight: 600;
+    }
+    .offline-banner.hidden { display: none; }
+
+    /* ── Filter tabs ── */
+    .filter-bar {
+      background: #fff;
+      padding: 8px 10px;
+      display: flex; gap: 6px;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 60px; z-index: 99;
+    }
+    .filter-bar::-webkit-scrollbar { display: none; }
+    .filter-tab {
+      padding: 5px 13px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font-size: 12px; cursor: pointer;
+      white-space: nowrap; color: var(--muted);
+    }
+    .filter-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    /* ── Grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px; padding: 8px;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card);
+      border-radius: 10px; overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,.10);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .card-img { width: 100%; aspect-ratio: 1; object-fit: cover; }
+    .card-img-placeholder {
+      width: 100%; aspect-ratio: 1;
+      background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 30px;
+    }
+    .card-body { padding: 5px 6px 6px; }
+    .card-name {
+      font-size: 10px; font-weight: 600;
+      line-height: 1.3; margin-bottom: 2px;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .card-maker {
+      font-size: 9px; color: var(--muted);
+      margin-bottom: 2px;
+      overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    }
+    .loc-badge {
+      display: inline-block;
+      padding: 1px 5px; border-radius: 8px; font-size: 9px;
+      background: #e8f5e9; color: var(--primary);
+      margin-bottom: 3px;
+    }
+    .qty-row {
+      display: flex; align-items: center;
+      gap: 3px; margin-top: 2px;
+    }
+    .qty-label { font-size: 8px; color: var(--muted); width: 10px; flex-shrink: 0; }
+    .qty-btn {
+      width: 20px; height: 20px;
+      border-radius: 50%; border: none;
+      font-size: 14px; font-weight: 700;
+      cursor: pointer; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      -webkit-tap-highlight-color: transparent; flex-shrink: 0;
+    }
+    .qty-btn.minus { background: #fee2e2; color: var(--danger); }
+    .qty-btn.plus  { background: #dcfce7; color: var(--primary); }
+    .qty-num { font-size: 13px; font-weight: 700; min-width: 16px; text-align: center; }
+    .qty-zero { color: var(--muted); }
+    .catch-count-badge {
+      margin-top: 3px;
+      font-size: 9px; font-weight: 700; color: #92610a;
+    }
+    /* pending badge */
+    .pending-badge {
+      position: absolute; top: 4px; left: 4px;
+      background: #f59e0b; color: #fff;
+      border-radius: 8px; padding: 1px 5px;
+      font-size: 9px; font-weight: 700;
+    }
+    .card { position: relative; }
+
+    /* ── FAB ── */
+    .fab {
+      position: fixed; bottom: 24px; right: 18px;
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--primary); color: #fff;
+      border: none; font-size: 28px; cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0,0,0,.30);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200;
+    }
+
+    /* ── Overlay / Modal (bottom sheet) ── */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.5);
+      z-index: 300;
+      display: flex; align-items: flex-end;
+    }
+    .overlay.hidden { display: none; }
+    .modal {
+      background: #fff;
+      border-radius: 20px 20px 0 0;
+      width: 100%; max-height: 92vh;
+      overflow-y: auto;
+      padding: 20px 18px 32px;
+    }
+    .modal-title {
+      font-size: 16px; font-weight: 700;
+      text-align: center; margin-bottom: 14px;
+    }
+
+    /* Camera */
+    .cam-area {
+      width: 100%; aspect-ratio: 4/3;
+      background: #111; border-radius: 12px; overflow: hidden;
+      position: relative; margin-bottom: 10px;
+    }
+    .cam-area video, .cam-area img { width: 100%; height: 100%; object-fit: cover; }
+    .cam-placeholder {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: #666; gap: 6px; font-size: 13px;
+    }
+    .cam-placeholder span:first-child { font-size: 44px; }
+    .cam-actions { display: flex; gap: 8px; margin-bottom: 14px; }
+
+    /* AI status */
+    .ai-status {
+      border-radius: 10px; padding: 9px 12px;
+      font-size: 12px;
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 12px;
+    }
+    .ai-status.hidden { display: none; }
+    .ai-status.loading { background: #fefce8; border: 1px solid #fde047; color: #854d0e; }
+    .ai-status.success { background: #f0fdf4; border: 1px solid #86efac; color: var(--primary); }
+    .ai-status.error   { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
+    .pending-notice {
+      background: #fefce8; border: 1px solid #fde047;
+      border-radius: 10px; padding: 8px 12px;
+      font-size: 12px; color: #854d0e; margin-bottom: 12px;
+    }
+
+    /* Form */
+    .form-group { margin-bottom: 12px; }
+    .form-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; display: block; }
+    .form-input {
+      width: 100%; padding: 10px 12px;
+      border: 1px solid var(--border); border-radius: 10px;
+      font-size: 15px; outline: none;
+    }
+    .form-input:focus { border-color: var(--primary); }
+    .qty-inputs { display: flex; gap: 8px; }
+    .qty-input-group { flex: 1; }
+    .qty-input-group .form-label { font-size: 11px; }
+    .loc-selector { display: flex; gap: 6px; }
+    .loc-sel-btn {
+      flex: 1; padding: 9px 4px;
+      border: 1px solid var(--border); border-radius: 10px;
+      background: #fff; font-size: 12px; cursor: pointer; text-align: center;
+    }
+    .loc-sel-btn.sel { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .btn { padding: 12px; border-radius: 12px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .btn-primary   { background: var(--primary); color: #fff; }
+    .btn-secondary { background: #f0f0f0; color: var(--text); }
+    .btn-dark  { background: #1a1a2e; color: #fff; flex: 1; }
+    .btn-light { background: #f0f0f0; color: var(--text); flex: 1; }
+    .btn-row   { display: flex; gap: 8px; margin-top: 10px; }
+
+    /* Empty */
+    .empty {
+      grid-column: 1 / -1;
+      text-align: center; padding: 60px 20px; color: var(--muted);
+    }
+    .empty .empty-icon { font-size: 60px; margin-bottom: 12px; }
+
+    /* Spinner */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid currentColor; border-top-color: transparent;
+      border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0;
+    }
+
+    /* ── Detail Page ── */
+    .detail-page {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      z-index: 150;
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: transform .28s cubic-bezier(.4,0,.2,1);
+      padding-bottom: 40px;
+    }
+    .detail-page.open { transform: translateX(0); }
+
+    .detail-header {
+      background: var(--primary); color: #fff;
+      padding: 12px 16px;
+      display: flex; align-items: center; gap: 10px;
+      position: sticky; top: 0; z-index: 10;
+      box-shadow: 0 2px 6px rgba(0,0,0,.25);
+    }
+    .detail-back {
+      background: rgba(255,255,255,.18); border: none; color: #fff;
+      width: 36px; height: 36px; border-radius: 50%;
+      font-size: 18px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .detail-header-title { font-size: 15px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+    .detail-hero {
+      width: 100%; aspect-ratio: 4/3; max-height: 240px;
+      background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 80px; overflow: hidden;
+    }
+    .detail-hero img { width: 100%; height: 100%; object-fit: cover; }
+
+    .detail-body { padding: 16px; }
+
+    .detail-name  { font-size: 18px; font-weight: 700; line-height: 1.4; margin-bottom: 4px; }
+    .detail-maker { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+    .detail-loc-row { margin-bottom: 12px; }
+    .detail-loc-badge {
+      display: inline-block; padding: 3px 10px;
+      border-radius: 10px; font-size: 12px;
+      background: #e8f5e9; color: var(--primary); font-weight: 600;
+    }
+
+    .detail-stats {
+      display: flex; gap: 10px; margin-bottom: 20px;
+    }
+    .detail-stat {
+      flex: 1; background: #fff; border-radius: 12px;
+      padding: 12px; text-align: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    .stat-label { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+    .stat-val   { font-size: 18px; font-weight: 700; }
+    .stat-val.highlight { color: var(--primary); }
+
+    .qty-stat-row {
+      display: flex; gap: 10px; margin-bottom: 20px;
+    }
+    .qty-stat-box {
+      flex: 1; background: #fff; border-radius: 12px;
+      padding: 10px 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    .qty-stat-label { font-size: 10px; color: var(--muted); margin-bottom: 6px; }
+    .qty-stat-ctrl  { display: flex; align-items: center; gap: 8px; }
+    .qty-stat-ctrl .qty-btn { width: 28px; height: 28px; font-size: 17px; }
+    .qty-stat-ctrl .qty-num { font-size: 18px; font-weight: 700; min-width: 24px; text-align: center; }
+
+    .detail-actions { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+    .detail-action-btn {
+      width: 100%; padding: 14px 16px;
+      border-radius: 14px; border: 1.5px solid var(--border);
+      background: #fff; font-size: 15px; font-weight: 600;
+      cursor: pointer; text-align: left;
+      display: flex; align-items: center; gap: 12px;
+      color: var(--text);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .detail-action-btn:active { opacity: .7; }
+    .detail-action-btn.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .detail-action-btn.danger  { color: var(--danger); border-color: #fca5a5; }
+    .detail-action-btn .action-arrow { margin-left: auto; font-size: 13px; opacity: .5; }
+
+    .detail-log-section { }
+    .detail-log-title {
+      font-size: 13px; font-weight: 700; color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .detail-log-item {
+      background: #fff; border-radius: 12px;
+      padding: 11px 14px; margin-bottom: 8px;
+      font-size: 13px; line-height: 1.6;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .detail-log-date { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+    .detail-log-body { }
+
+    /* ── Catch Modal ── */
+    .catch-item-info {
+      display: flex; align-items: center; gap: 10px;
+      background: #f4f4f4; border-radius: 12px;
+      padding: 10px 12px; margin-bottom: 16px;
+    }
+    .catch-item-thumb {
+      width: 44px; height: 44px; border-radius: 8px; overflow: hidden;
+      flex-shrink: 0;
+      background: linear-gradient(135deg,#e8f5e9,#c8e6c9);
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
+    }
+    .catch-item-thumb img { width:100%; height:100%; object-fit:cover; }
+    .catch-item-name  { font-size: 12px; font-weight: 700; line-height: 1.4; }
+    .catch-item-maker { font-size: 10px; color: var(--muted); }
+
+    .weather-selector { display: flex; gap: 6px; }
+    .weather-btn {
+      flex: 1; padding: 8px 4px;
+      border-radius: 10px; border: 1.5px solid var(--border);
+      background: #fff; font-size: 11px; cursor: pointer; text-align: center;
+    }
+    .weather-btn.sel { border-color: #3b82f6; background: #eff6ff; color: #1d4ed8; }
+    .catch-memo {
+      width: 100%; padding: 10px 12px;
+      border: 1px solid var(--border); border-radius: 10px;
+      font-size: 14px; outline: none;
+      font-family: inherit; resize: none; min-height: 72px;
+    }
+    .catch-memo:focus { border-color: var(--primary); }
+  </style>
+</head>
+<body>
+
+<div class="offline-banner hidden" id="offlineBanner">📵 オフラインモード — AI判定は接続後に実行できます</div>
+
+<div class="header">
+  <h1>🎣 タックルボックス</h1>
+  <button class="icon-btn" id="settingsBtn">⚙️</button>
+</div>
+
+<div class="filter-bar">
+  <button class="filter-tab active" data-loc="all">すべて</button>
+  <button class="filter-tab" data-loc="home">🏠 自宅</button>
+  <button class="filter-tab" data-loc="car">🚗 車</button>
+  <button class="filter-tab" data-loc="bag">🎒 バッグ</button>
+  <button class="filter-tab" data-loc="zero">在庫なし</button>
+  <button class="filter-tab" data-loc="caught">🐟 釣果あり</button>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<button class="fab" id="addBtn">＋</button>
+
+<!-- ── Detail Page ── -->
+<div class="detail-page" id="detailPage">
+  <div class="detail-header">
+    <button class="detail-back" id="detailBack">←</button>
+    <div class="detail-header-title" id="detailHeaderTitle">商品詳細</div>
+  </div>
+
+  <div class="detail-hero" id="detailHero"></div>
+
+  <div class="detail-body">
+    <div class="detail-name"  id="detailName"></div>
+    <div class="detail-maker" id="detailMaker"></div>
+    <div class="detail-loc-row">
+      <span class="detail-loc-badge" id="detailLoc"></span>
+    </div>
+
+    <div class="detail-stats">
+      <div class="detail-stat">
+        <div class="stat-label">釣果回数</div>
+        <div class="stat-val highlight" id="detailCatchCount">0回</div>
+      </div>
+      <div class="detail-stat">
+        <div class="stat-label">最終釣果日</div>
+        <div class="stat-val" id="detailLastCatch" style="font-size:13px;">—</div>
+      </div>
+    </div>
+
+    <div class="qty-stat-row">
+      <div class="qty-stat-box">
+        <div class="qty-stat-label">袋の数</div>
+        <div class="qty-stat-ctrl">
+          <button class="qty-btn minus" data-type="bags" id="detailBagsMinus">−</button>
+          <span class="qty-num" id="detailBagsNum">0</span>
+          <button class="qty-btn plus"  data-type="bags" id="detailBagsPlus">＋</button>
+        </div>
+      </div>
+      <div class="qty-stat-box">
+        <div class="qty-stat-label">個の数</div>
+        <div class="qty-stat-ctrl">
+          <button class="qty-btn minus" data-type="pcs" id="detailPcsMinus">−</button>
+          <span class="qty-num" id="detailPcsNum">0</span>
+          <button class="qty-btn plus"  data-type="pcs" id="detailPcsPlus">＋</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-actions">
+      <button class="detail-action-btn primary" id="detailCatchBtn">
+        🐟 釣れた！を記録する<span class="action-arrow">›</span>
+      </button>
+      <button class="detail-action-btn" id="detailSearchBtn">
+        🔍 Googleで公式情報を検索<span class="action-arrow">↗</span>
+      </button>
+      <button class="detail-action-btn" id="detailEditBtn">
+        ✏️ 編集する<span class="action-arrow">›</span>
+      </button>
+      <button class="detail-action-btn danger" id="detailDeleteBtn">
+        🗑️ 削除する<span class="action-arrow">›</span>
+      </button>
+    </div>
+
+    <div class="detail-log-section" id="detailLogSection" style="display:none;">
+      <div class="detail-log-title">釣果ログ</div>
+      <div id="detailLogList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add Modal ── -->
+<div class="overlay hidden" id="addModal">
+  <div class="modal">
+    <div class="modal-title">タックルを追加</div>
+
+    <div class="cam-area" id="camArea">
+      <div class="cam-placeholder" id="camPlaceholder">
+        <span>📷</span><span>写真を撮影 or 選択</span>
+      </div>
+      <video id="videoEl" autoplay playsinline style="display:none;"></video>
+      <img id="capturedImg" style="display:none;">
+      <canvas id="captureCanvas" style="display:none;"></canvas>
+    </div>
+
+    <div class="cam-actions">
+      <button class="btn btn-dark" id="camBtn">📷 撮影</button>
+      <button class="btn btn-light" id="galleryBtn">🖼️ ギャラリー</button>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" style="display:none;">
+
+    <div class="ai-status hidden" id="aiStatus"></div>
+    <div class="pending-notice" id="pendingNotice" style="display:none;">
+      📌 オフライン中のため、接続後にAI判定します
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">メーカー</label>
+      <input class="form-input" id="itemMaker" type="text" placeholder="例: OSP">
+    </div>
+    <div class="form-group">
+      <label class="form-label">商品名</label>
+      <input class="form-input" id="itemName" type="text" placeholder="例: ドライブクロー 3inch グリパン">
+    </div>
+    <div class="form-group">
+      <div class="qty-inputs">
+        <div class="qty-input-group">
+          <label class="form-label">袋の数</label>
+          <input class="form-input" id="itemBags" type="number" value="1" min="0">
+        </div>
+        <div class="qty-input-group">
+          <label class="form-label">個の数</label>
+          <input class="form-input" id="itemPcs" type="number" value="0" min="0">
+        </div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">保管場所</label>
+      <div class="loc-selector" id="locSelector">
+        <button class="loc-sel-btn sel" data-loc="home">🏠 自宅</button>
+        <button class="loc-sel-btn" data-loc="car">🚗 車</button>
+        <button class="loc-sel-btn" data-loc="bag">🎒 バッグ</button>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="cancelBtn" style="flex:1;">キャンセル</button>
+      <button class="btn btn-primary"   id="saveBtn"   style="flex:2;">登録する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Catch Modal ── -->
+<div class="overlay hidden" id="catchModal">
+  <div class="modal">
+    <div class="modal-title">🐟 釣れた！</div>
+
+    <div class="catch-item-info">
+      <div class="catch-item-thumb" id="catchThumb"></div>
+      <div>
+        <div class="catch-item-maker" id="catchMakerLabel"></div>
+        <div class="catch-item-name"  id="catchNameLabel"></div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">釣れた場所</label>
+      <input class="form-input" id="catchLocation" type="text" placeholder="例: 琵琶湖南湖、霞ヶ浦">
+    </div>
+    <div class="form-group">
+      <label class="form-label">天気</label>
+      <div class="weather-selector" id="weatherSelector">
+        <button class="weather-btn" data-weather="sunny">☀️ 晴れ</button>
+        <button class="weather-btn" data-weather="cloudy">⛅ 曇り</button>
+        <button class="weather-btn" data-weather="rainy">🌧️ 雨</button>
+        <button class="weather-btn" data-weather="windy">💨 風</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">メモ</label>
+      <textarea class="catch-memo" id="catchMemo" placeholder="例: 朝マズメ、テキサスリグ、水深2m"></textarea>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="catchCancelBtn" style="flex:1;">キャンセル</button>
+      <button class="btn btn-primary"   id="catchSaveBtn"   style="flex:2;">記録する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Edit Modal ── -->
+<div class="overlay hidden" id="editModal">
+  <div class="modal">
+    <div class="modal-title">✏️ 編集する</div>
+
+    <div class="form-group">
+      <label class="form-label">メーカー</label>
+      <input class="form-input" id="editMaker" type="text" placeholder="例: OSP">
+    </div>
+    <div class="form-group">
+      <label class="form-label">商品名</label>
+      <input class="form-input" id="editName" type="text" placeholder="例: ドライブクロー 3inch">
+    </div>
+    <div class="form-group">
+      <label class="form-label">保管場所</label>
+      <div class="loc-selector" id="editLocSelector">
+        <button class="loc-sel-btn" data-loc="home">🏠 自宅</button>
+        <button class="loc-sel-btn" data-loc="car">🚗 車</button>
+        <button class="loc-sel-btn" data-loc="bag">🎒 バッグ</button>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="editCancelBtn" style="flex:1;">キャンセル</button>
+      <button class="btn btn-primary"   id="editSaveBtn"   style="flex:2;">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Settings Modal ── -->
+<div class="overlay hidden" id="settingsModal">
+  <div class="modal">
+    <div class="modal-title">設定</div>
+
+    <div class="form-group">
+      <label class="form-label">Claude API キー</label>
+      <input class="form-input" id="apiKeyInput" type="password" placeholder="sk-ant-...">
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:16px;">写真からのAI自動判定に使用します。Anthropic Consoleで取得できます。</p>
+
+    <div id="pendingSection" style="display:none;margin-bottom:16px;">
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px;">⏳ AI判定待ち</div>
+      <div id="pendingList" style="font-size:12px;color:var(--muted);margin-bottom:10px;white-space:pre-wrap;"></div>
+      <button class="btn btn-primary" id="runPendingBtn" style="width:100%;">AI判定を実行</button>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="settingsCancelBtn" style="flex:1;">閉じる</button>
+      <button class="btn btn-primary"   id="settingsSaveBtn"   style="flex:1;">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+//  IndexedDB
+// ══════════════════════════════════════════
+const DB_NAME = 'tacklebox_v1';
+let db;
+
+function openDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('items'))
+        d.createObjectStore('items', { keyPath: 'id', autoIncrement: true });
+    };
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+const tx       = m  => db.transaction('items', m).objectStore('items');
+const dbAll    = () => new Promise((r,e) => { const q=tx('readonly').getAll(); q.onsuccess=_=>r(q.result); q.onerror=_=>e(q.error); });
+const dbAdd    = it => new Promise((r,e) => { const q=tx('readwrite').add(it); q.onsuccess=_=>r(q.result); q.onerror=_=>e(q.error); });
+const dbPut    = it => new Promise((r,e) => { const q=tx('readwrite').put(it); q.onsuccess=_=>r(q.result); q.onerror=_=>e(q.error); });
+const dbDelete = id => new Promise((r,e) => { const q=tx('readwrite').delete(id); q.onsuccess=_=>r(); q.onerror=_=>e(q.error); });
+
+// ══════════════════════════════════════════
+//  State
+// ══════════════════════════════════════════
+let items         = [];
+let currentFilter = 'all';
+let selectedLoc   = 'home';
+let capturedData  = null;
+let cameraStream  = null;
+let cameraActive  = false;
+let isOnline      = navigator.onLine;
+
+const API_KEY_KEY = 'tb_apikey';
+const getApiKey   = () => localStorage.getItem(API_KEY_KEY) || '';
+const setApiKey   = v  => localStorage.setItem(API_KEY_KEY, v);
+
+function migrateLegacyItem(item) {
+  if (item.bags === undefined && item.pcs === undefined) {
+    item.bags = item.qty != null ? item.qty : 1;
+    item.pcs  = 0;
+    delete item.qty;
+  }
+  if (!Array.isArray(item.catches)) item.catches = [];
+  return item;
+}
+
+// ══════════════════════════════════════════
+//  Helpers
+// ══════════════════════════════════════════
+const LOC_LABEL = { home: '🏠 自宅', car: '🚗 車', bag: '🎒 バッグ' };
+const WEATHER_LABEL = { sunny:'☀️ 晴れ', cloudy:'⛅ 曇り', rainy:'🌧️ 雨', windy:'💨 風' };
+const EMOJI_MAP = [
+  [/ワーム|worm/i,   '🪱'],
+  [/ジグ|jig/i,      '🔩'],
+  [/スピナー|spinn/i,'🌀'],
+  [/クランク|crank/i,'🎣'],
+  [/フック|hook/i,   '🪝'],
+  [/ライン|line/i,   '🧵'],
+  [/ロッド|rod/i,    '🎋'],
+  [/リール|reel/i,   '⚙️'],
+];
+
+function itemEmoji(item) {
+  const n = item.name || '';
+  for (const [re, em] of EMOJI_MAP) if (re.test(n)) return em;
+  return '🐟';
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+}
+
+function fmtDateTime(ts) {
+  const d = new Date(ts);
+  return `${fmtDate(ts)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function lastCatchDate(item) {
+  if (!item.catches.length) return null;
+  return Math.max(...item.catches.map(c => c.date));
+}
+
+// ══════════════════════════════════════════
+//  Render Grid
+// ══════════════════════════════════════════
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  let list = items;
+  if      (currentFilter === 'zero')   list = items.filter(i => i.bags===0 && i.pcs===0);
+  else if (currentFilter === 'caught') list = items.filter(i => i.catches.length > 0);
+  else if (currentFilter !== 'all')    list = items.filter(i => i.location === currentFilter);
+
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty"><div class="empty-icon">🎣</div>タックルがありません<br><small style="font-size:12px;">＋ボタンで追加しよう</small></div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map(item => `
+    <div class="card" data-id="${item.id}">
+      ${item.imageData
+        ? `<img class="card-img" src="${item.imageData}" loading="lazy">`
+        : `<div class="card-img-placeholder">${itemEmoji(item)}</div>`}
+      ${item.pendingAI ? '<div class="pending-badge">AI待ち</div>' : ''}
+      <div class="card-body">
+        <div class="card-name">${esc(item.name)}</div>
+        ${item.maker ? `<div class="card-maker">${esc(item.maker)}</div>` : ''}
+        <div><span class="loc-badge">${esc(LOC_LABEL[item.location] || item.location)}</span></div>
+        <div class="qty-row">
+          <span class="qty-label">袋</span>
+          <button class="qty-btn minus" data-id="${item.id}" data-type="bags">−</button>
+          <span class="qty-num ${item.bags===0?'qty-zero':''}">${item.bags}</span>
+          <button class="qty-btn plus"  data-id="${item.id}" data-type="bags">＋</button>
+        </div>
+        <div class="qty-row">
+          <span class="qty-label">個</span>
+          <button class="qty-btn minus" data-id="${item.id}" data-type="pcs">−</button>
+          <span class="qty-num ${item.pcs===0?'qty-zero':''}">${item.pcs}</span>
+          <button class="qty-btn plus"  data-id="${item.id}" data-type="pcs">＋</button>
+        </div>
+        ${item.catches.length > 0 ? `<div class="catch-count-badge">🐟 ${item.catches.length}回</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ══════════════════════════════════════════
+//  Grid click (qty buttons + card tap)
+// ══════════════════════════════════════════
+document.getElementById('grid').addEventListener('click', async e => {
+  const qBtn = e.target.closest('.qty-btn');
+  if (qBtn) {
+    e.stopPropagation();
+    const id    = Number(qBtn.dataset.id);
+    const type  = qBtn.dataset.type;
+    const delta = qBtn.classList.contains('plus') ? 1 : -1;
+    const item  = items.find(i => i.id === id);
+    if (!item) return;
+    item[type] = Math.max(0, item[type] + delta);
+    await dbPut(item);
+    renderGrid();
+    // 詳細ページが開いていれば数量も更新
+    if (currentDetailItem?.id === id) refreshDetailQty();
+    return;
+  }
+
+  const card = e.target.closest('.card');
+  if (card) {
+    const id   = Number(card.dataset.id);
+    const item = items.find(i => i.id === id);
+    if (item) openDetailPage(item);
+  }
+});
+
+// ══════════════════════════════════════════
+//  Detail Page
+// ══════════════════════════════════════════
+let currentDetailItem = null;
+
+function openDetailPage(item) {
+  currentDetailItem = item;
+  populateDetailPage(item);
+  document.getElementById('detailPage').classList.add('open');
+}
+
+function closeDetailPage() {
+  document.getElementById('detailPage').classList.remove('open');
+  currentDetailItem = null;
+}
+
+function populateDetailPage(item) {
+  // ヘッダー
+  document.getElementById('detailHeaderTitle').textContent = item.name;
+
+  // ヒーロー画像
+  const hero = document.getElementById('detailHero');
+  if (item.imageData) {
+    hero.innerHTML = `<img src="${item.imageData}">`;
+  } else {
+    hero.innerHTML = '';
+    hero.textContent = itemEmoji(item);
+  }
+
+  // 基本情報
+  document.getElementById('detailName').textContent  = item.name;
+  document.getElementById('detailMaker').textContent = item.maker || '';
+  document.getElementById('detailLoc').textContent   = LOC_LABEL[item.location] || item.location;
+
+  // 釣果統計
+  const cnt  = item.catches.length;
+  const last = lastCatchDate(item);
+  document.getElementById('detailCatchCount').textContent = cnt ? `${cnt}回` : '—';
+  document.getElementById('detailLastCatch').textContent  = last ? fmtDate(last) : '—';
+
+  // 数量
+  refreshDetailQty();
+
+  // 釣果ログ
+  const logSection = document.getElementById('detailLogSection');
+  const logList    = document.getElementById('detailLogList');
+  if (item.catches.length > 0) {
+    logList.innerHTML = [...item.catches].reverse().map(c => {
+      const parts = [
+        c.weather  ? (WEATHER_LABEL[c.weather] || '') : '',
+        c.location ? `📍 ${esc(c.location)}` : '',
+        c.memo     ? esc(c.memo) : '',
+      ].filter(Boolean);
+      return `<div class="detail-log-item">
+        <div class="detail-log-date">${fmtDateTime(c.date)}</div>
+        <div class="detail-log-body">${parts.join(' &nbsp;·&nbsp; ') || '記録なし'}</div>
+      </div>`;
+    }).join('');
+    logSection.style.display = 'block';
+  } else {
+    logSection.style.display = 'none';
+  }
+}
+
+function refreshDetailQty() {
+  const item = currentDetailItem;
+  if (!item) return;
+  document.getElementById('detailBagsNum').textContent = item.bags;
+  document.getElementById('detailPcsNum').textContent  = item.pcs;
+  document.getElementById('detailBagsNum').className   = `qty-num${item.bags===0?' qty-zero':''}`;
+  document.getElementById('detailPcsNum').className    = `qty-num${item.pcs===0?' qty-zero':''}`;
+}
+
+// 詳細ページの数量ボタン
+['detailBagsMinus','detailBagsPlus','detailPcsMinus','detailPcsPlus'].forEach(id => {
+  document.getElementById(id).addEventListener('click', async () => {
+    const item = currentDetailItem;
+    if (!item) return;
+    const type  = id.includes('Bags') ? 'bags' : 'pcs';
+    const delta = id.includes('Plus')  ? 1 : -1;
+    item[type] = Math.max(0, item[type] + delta);
+    await dbPut(item);
+    refreshDetailQty();
+    renderGrid();
+  });
+});
+
+document.getElementById('detailBack').addEventListener('click', closeDetailPage);
+
+// Google 検索
+document.getElementById('detailSearchBtn').addEventListener('click', () => {
+  if (!currentDetailItem) return;
+  const q = [currentDetailItem.maker, currentDetailItem.name, '公式'].filter(Boolean).join(' ');
+  window.open('https://www.google.com/search?q=' + encodeURIComponent(q), '_blank');
+});
+
+// 削除
+document.getElementById('detailDeleteBtn').addEventListener('click', async () => {
+  if (!currentDetailItem) return;
+  if (!confirm(`「${currentDetailItem.name}」を削除しますか？`)) return;
+  await dbDelete(currentDetailItem.id);
+  items = items.filter(i => i.id !== currentDetailItem.id);
+  renderGrid();
+  closeDetailPage();
+});
+
+// ── 釣れた！ボタン → Catch Modal を開く
+document.getElementById('detailCatchBtn').addEventListener('click', () => {
+  if (currentDetailItem) openCatchModal(currentDetailItem);
+});
+
+// ── 編集ボタン → Edit Modal を開く
+document.getElementById('detailEditBtn').addEventListener('click', () => {
+  if (currentDetailItem) openEditModal(currentDetailItem);
+});
+
+// ══════════════════════════════════════════
+//  Catch Modal
+// ══════════════════════════════════════════
+let currentCatchItem = null;
+let selectedWeather  = '';
+
+function openCatchModal(item) {
+  currentCatchItem = item;
+  selectedWeather  = '';
+
+  const thumb = document.getElementById('catchThumb');
+  thumb.innerHTML = item.imageData ? `<img src="${item.imageData}">` : '';
+  if (!item.imageData) thumb.textContent = itemEmoji(item);
+
+  document.getElementById('catchMakerLabel').textContent = item.maker || '';
+  document.getElementById('catchNameLabel').textContent  = item.name  || '';
+  document.getElementById('catchLocation').value = '';
+  document.getElementById('catchMemo').value     = '';
+  document.querySelectorAll('.weather-btn').forEach(b => b.classList.remove('sel'));
+
+  document.getElementById('catchModal').classList.remove('hidden');
+}
+
+function closeCatchModal() {
+  document.getElementById('catchModal').classList.add('hidden');
+  currentCatchItem = null;
+}
+
+document.getElementById('weatherSelector').addEventListener('click', e => {
+  const btn = e.target.closest('.weather-btn');
+  if (!btn) return;
+  const w = btn.dataset.weather;
+  if (selectedWeather === w) {
+    selectedWeather = '';
+    btn.classList.remove('sel');
+  } else {
+    selectedWeather = w;
+    document.querySelectorAll('.weather-btn').forEach(b => b.classList.remove('sel'));
+    btn.classList.add('sel');
+  }
+});
+
+document.getElementById('catchSaveBtn').addEventListener('click', async () => {
+  const item = currentCatchItem;
+  if (!item) return;
+  item.catches.push({
+    date:     Date.now(),
+    location: document.getElementById('catchLocation').value.trim(),
+    weather:  selectedWeather,
+    memo:     document.getElementById('catchMemo').value.trim(),
+  });
+  await dbPut(item);
+  renderGrid();
+  closeCatchModal();
+  // 詳細ページを開いていれば再描画
+  if (currentDetailItem?.id === item.id) populateDetailPage(item);
+});
+
+document.getElementById('catchCancelBtn').addEventListener('click', closeCatchModal);
+document.getElementById('catchModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('catchModal')) closeCatchModal();
+});
+
+// ══════════════════════════════════════════
+//  Edit Modal
+// ══════════════════════════════════════════
+let editSelectedLoc = 'home';
+
+function openEditModal(item) {
+  editSelectedLoc = item.location || 'home';
+  document.getElementById('editMaker').value = item.maker || '';
+  document.getElementById('editName').value  = item.name  || '';
+  updateEditLocBtns();
+  document.getElementById('editModal').classList.remove('hidden');
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').classList.add('hidden');
+}
+
+function updateEditLocBtns() {
+  document.querySelectorAll('#editLocSelector .loc-sel-btn').forEach(b => {
+    b.classList.toggle('sel', b.dataset.loc === editSelectedLoc);
+  });
+}
+
+document.getElementById('editLocSelector').addEventListener('click', e => {
+  const btn = e.target.closest('.loc-sel-btn');
+  if (!btn) return;
+  editSelectedLoc = btn.dataset.loc;
+  updateEditLocBtns();
+});
+
+document.getElementById('editSaveBtn').addEventListener('click', async () => {
+  const item = currentDetailItem;
+  if (!item) return;
+  const name = document.getElementById('editName').value.trim();
+  if (!name) { alert('商品名を入力してください'); return; }
+  item.name     = name;
+  item.maker    = document.getElementById('editMaker').value.trim();
+  item.location = editSelectedLoc;
+  await dbPut(item);
+  renderGrid();
+  populateDetailPage(item);
+  closeEditModal();
+});
+
+document.getElementById('editCancelBtn').addEventListener('click', closeEditModal);
+document.getElementById('editModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('editModal')) closeEditModal();
+});
+
+// ══════════════════════════════════════════
+//  Camera
+// ══════════════════════════════════════════
+function stopCamera() {
+  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+  cameraActive = false;
+}
+
+async function startCamera() {
+  stopCamera();
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 960 } }
+    });
+    const v = document.getElementById('videoEl');
+    v.srcObject = cameraStream;
+    v.style.display = 'block';
+    document.getElementById('capturedImg').style.display    = 'none';
+    document.getElementById('camPlaceholder').style.display = 'none';
+    cameraActive = true;
+    document.getElementById('camBtn').textContent = '📸 撮る';
+  } catch (err) {
+    alert('カメラを起動できませんでした: ' + err.message);
+  }
+}
+
+function capturePhoto() {
+  const video  = document.getElementById('videoEl');
+  const canvas = document.getElementById('captureCanvas');
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  capturedData = canvas.toDataURL('image/jpeg', 0.82);
+  document.getElementById('capturedImg').src = capturedData;
+  document.getElementById('capturedImg').style.display = 'block';
+  video.style.display = 'none';
+  stopCamera();
+  document.getElementById('camBtn').textContent = '📷 撮り直す';
+  handleNewImage();
+}
+
+function handleNewImage() {
+  const key = getApiKey();
+  if (isOnline && key)  runAI(capturedData);
+  else if (!isOnline)   { document.getElementById('pendingNotice').style.display='block'; setAiStatus('hidden'); }
+  else                  setAiStatus('error', '⚠️ APIキーが未設定です。設定から入力してください。');
+}
+
+// ══════════════════════════════════════════
+//  AI (Claude API)
+// ══════════════════════════════════════════
+function setAiStatus(type, text='') {
+  const el = document.getElementById('aiStatus');
+  el.className = 'ai-status ' + type;
+  if (type==='hidden') { el.classList.add('hidden'); return; }
+  const icon = type==='loading' ? '<span class="spinner"></span>' : type==='success' ? '✅' : '⚠️';
+  el.innerHTML = `${icon} <span>${esc(text)}</span>`;
+}
+
+async function runAI(imageData) {
+  const key = getApiKey();
+  if (!key || !imageData) return;
+  setAiStatus('loading', 'AIがタックルを識別中...');
+  const base64    = imageData.split(',')[1];
+  const mediaType = imageData.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 200,
+        messages: [{ role:'user', content:[
+          { type:'image', source:{ type:'base64', media_type:mediaType, data:base64 } },
+          { type:'text', text:'この画像はバス釣り用ルアー・ワームのパッケージです。パッケージに印刷されているテキストを最優先で読み取り、商品名とメーカー名を特定してください。テキストが読めない場合は形状・色・特徴から推測してください。以下のJSON形式のみで返してください：{"maker":"メーカー名","name":"商品名（サイズ・カラー含む）"}' }
+        ]}]
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error?.message || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    const text = (data.content?.[0]?.text || '').trim();
+    let maker='', name=text;
+    try {
+      const json = JSON.parse(text.replace(/^```json\s*|```\s*$/g,'').trim());
+      maker = (json.maker||'').trim();
+      name  = (json.name ||'').trim();
+    } catch(_) {}
+    document.getElementById('itemMaker').value = maker;
+    document.getElementById('itemName').value  = name;
+    setAiStatus('success', `AI判定: ${[maker,name].filter(Boolean).join(' / ')}`);
+  } catch(err) {
+    setAiStatus('error', 'AI判定に失敗: ' + err.message);
+  }
+}
+
+async function runPendingAI() {
+  const key = getApiKey();
+  if (!key) { alert('APIキーを設定してください'); return; }
+  const pending = items.filter(i => i.pendingAI && i.imageData);
+  if (!pending.length) { alert('判定待ちのアイテムはありません'); return; }
+  const btn = document.getElementById('runPendingBtn');
+  btn.textContent='判定中...'; btn.disabled=true;
+  for (const item of pending) {
+    try {
+      const base64    = item.imageData.split(',')[1];
+      const mediaType = item.imageData.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
+        body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:200, messages:[{ role:'user', content:[
+          { type:'image', source:{ type:'base64', media_type:mediaType, data:base64 } },
+          { type:'text', text:'この画像はバス釣り用ルアー・ワームのパッケージです。パッケージに印刷されているテキストを最優先で読み取り、商品名とメーカー名を特定してください。テキストが読めない場合は形状・色・特徴から推測してください。以下のJSON形式のみで返してください：{"maker":"メーカー名","name":"商品名（サイズ・カラー含む）"}' }
+        ]}]})
+      });
+      if (res.ok) {
+        const d = await res.json();
+        const text = (d.content?.[0]?.text||'').trim();
+        try {
+          const json = JSON.parse(text.replace(/^```json\s*|```\s*$/g,'').trim());
+          if (json.maker) item.maker = json.maker.trim();
+          if (json.name)  item.name  = json.name.trim();
+        } catch(_) { if(text) item.name=text; }
+        item.pendingAI = false;
+        await dbPut(item);
+      }
+    } catch(_) {}
+  }
+  items = await dbAll();
+  items.forEach(migrateLegacyItem);
+  renderGrid();
+  updatePendingSection();
+  btn.textContent='AI判定を実行'; btn.disabled=false;
+  alert('AI判定が完了しました');
+}
+
+function updatePendingSection() {
+  const pending = items.filter(i => i.pendingAI);
+  const sec = document.getElementById('pendingSection');
+  sec.style.display = pending.length ? 'block' : 'none';
+  if (pending.length)
+    document.getElementById('pendingList').textContent = pending.map(i=>`・${i.name}`).join('\n');
+}
+
+// ══════════════════════════════════════════
+//  Add Modal
+// ══════════════════════════════════════════
+function openAddModal() {
+  capturedData = null; selectedLoc = 'home';
+  document.getElementById('itemMaker').value = '';
+  document.getElementById('itemName').value  = '';
+  document.getElementById('itemBags').value  = '1';
+  document.getElementById('itemPcs').value   = '0';
+  document.getElementById('capturedImg').style.display    = 'none';
+  document.getElementById('videoEl').style.display        = 'none';
+  document.getElementById('camPlaceholder').style.display = 'flex';
+  document.getElementById('camBtn').textContent           = '📷 撮影';
+  document.getElementById('pendingNotice').style.display  = 'none';
+  setAiStatus('hidden');
+  updateLocBtns();
+  document.getElementById('addModal').classList.remove('hidden');
+}
+
+function closeAddModal() {
+  stopCamera();
+  document.getElementById('addModal').classList.add('hidden');
+}
+
+function updateLocBtns() {
+  document.querySelectorAll('#locSelector .loc-sel-btn').forEach(b => {
+    b.classList.toggle('sel', b.dataset.loc === selectedLoc);
+  });
+}
+
+async function saveItem() {
+  const name = document.getElementById('itemName').value.trim();
+  if (!name) { alert('商品名を入力してください'); return; }
+  const pendingAI = !!(capturedData && (!isOnline || !getApiKey()));
+  const item = {
+    name, maker: document.getElementById('itemMaker').value.trim(),
+    bags: Math.max(0, parseInt(document.getElementById('itemBags').value)||0),
+    pcs:  Math.max(0, parseInt(document.getElementById('itemPcs').value) ||0),
+    location: selectedLoc, imageData: capturedData,
+    catches: [], pendingAI, createdAt: Date.now(),
+  };
+  const id = await dbAdd(item);
+  item.id = id;
+  items.push(item);
+  renderGrid();
+  closeAddModal();
+}
+
+// ══════════════════════════════════════════
+//  Event wiring
+// ══════════════════════════════════════════
+document.getElementById('addBtn').addEventListener('click', openAddModal);
+document.getElementById('cancelBtn').addEventListener('click', closeAddModal);
+document.getElementById('addModal').addEventListener('click', e => {
+  if (e.target===document.getElementById('addModal')) closeAddModal();
+});
+document.getElementById('camBtn').addEventListener('click', () => {
+  if (cameraActive) capturePhoto(); else startCamera();
+});
+document.getElementById('galleryBtn').addEventListener('click', () => {
+  document.getElementById('fileInput').click();
+});
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    capturedData = ev.target.result;
+    document.getElementById('capturedImg').src = capturedData;
+    document.getElementById('capturedImg').style.display    = 'block';
+    document.getElementById('videoEl').style.display        = 'none';
+    document.getElementById('camPlaceholder').style.display = 'none';
+    handleNewImage();
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+});
+document.getElementById('locSelector').addEventListener('click', e => {
+  const btn = e.target.closest('.loc-sel-btn'); if (!btn) return;
+  selectedLoc = btn.dataset.loc; updateLocBtns();
+});
+document.getElementById('saveBtn').addEventListener('click', saveItem);
+
+document.querySelectorAll('.filter-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentFilter = tab.dataset.loc;
+    renderGrid();
+  });
+});
+
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  document.getElementById('apiKeyInput').value = getApiKey();
+  updatePendingSection();
+  document.getElementById('settingsModal').classList.remove('hidden');
+});
+document.getElementById('settingsCancelBtn').addEventListener('click', () => {
+  document.getElementById('settingsModal').classList.add('hidden');
+});
+document.getElementById('settingsSaveBtn').addEventListener('click', () => {
+  setApiKey(document.getElementById('apiKeyInput').value.trim());
+  document.getElementById('settingsModal').classList.add('hidden');
+  alert('保存しました');
+});
+document.getElementById('settingsModal').addEventListener('click', e => {
+  if (e.target===document.getElementById('settingsModal'))
+    document.getElementById('settingsModal').classList.add('hidden');
+});
+document.getElementById('runPendingBtn').addEventListener('click', runPendingAI);
+
+window.addEventListener('online',  () => { isOnline=true;  document.getElementById('offlineBanner').classList.add('hidden'); });
+window.addEventListener('offline', () => { isOnline=false; document.getElementById('offlineBanner').classList.remove('hidden'); });
+if (!navigator.onLine) document.getElementById('offlineBanner').classList.remove('hidden');
+
+// ══════════════════════════════════════════
+//  Boot
+// ══════════════════════════════════════════
+(async () => {
+  db    = await openDB();
+  items = await dbAll();
+  items.forEach(migrateLegacyItem);
+  renderGrid();
+})();
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+  }
+</script>
+</body>
+</html>
