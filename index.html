@@ -617,15 +617,15 @@
     <div class="modal-title">設定</div>
 
     <div class="form-group">
-      <label class="form-label">Claude API キー</label>
-      <input class="form-input" id="apiKeyInput" type="password" placeholder="sk-ant-...">
+      <label class="form-label">Google Vision API キー</label>
+      <input class="form-input" id="visionKeyInput" type="password" placeholder="AIza...">
     </div>
-    <p style="font-size:11px;color:var(--muted);margin-bottom:16px;">写真からのAI自動判定に使用します。Anthropic Consoleで取得できます。</p>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:16px;">写真からのOCR自動読み取りに使用します。Google Cloud Console で Vision API を有効にして取得してください。</p>
 
     <div id="pendingSection" style="display:none;margin-bottom:16px;">
-      <div style="font-weight:700;font-size:13px;margin-bottom:6px;">⏳ AI判定待ち</div>
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px;">⏳ OCR読み取り待ち</div>
       <div id="pendingList" style="font-size:12px;color:var(--muted);margin-bottom:10px;white-space:pre-wrap;"></div>
-      <button class="btn btn-primary" id="runPendingBtn" style="width:100%;">AI判定を実行</button>
+      <button class="btn btn-primary" id="runPendingBtn" style="width:100%;">OCR読み取りを実行</button>
     </div>
 
     <div class="btn-row">
@@ -671,9 +671,9 @@ let cameraStream  = null;
 let cameraActive  = false;
 let isOnline      = navigator.onLine;
 
-const API_KEY_KEY = 'tb_apikey';
-const getApiKey   = () => localStorage.getItem(API_KEY_KEY) || '';
-const setApiKey   = v  => localStorage.setItem(API_KEY_KEY, v);
+const VISION_KEY_KEY  = 'tb_vision_key';
+const getVisionKey    = () => localStorage.getItem(VISION_KEY_KEY) || '';
+const setVisionKey    = v  => localStorage.setItem(VISION_KEY_KEY, v);
 
 function migrateLegacyItem(item) {
   if (item.bags === undefined && item.pcs === undefined) {
@@ -1069,14 +1069,14 @@ function capturePhoto() {
 }
 
 function handleNewImage() {
-  const key = getApiKey();
-  if (isOnline && key)  runAI(capturedData);
+  const key = getVisionKey();
+  if (isOnline && key)  runVision(capturedData);
   else if (!isOnline)   { document.getElementById('pendingNotice').style.display='block'; setAiStatus('hidden'); }
-  else                  setAiStatus('error', '⚠️ APIキーが未設定です。設定から入力してください。');
+  else                  setAiStatus('error', '⚠️ Google Vision APIキーが未設定です。設定から入力してください。');
 }
 
 // ══════════════════════════════════════════
-//  AI (Claude API)
+//  Google Vision API (OCR)
 // ══════════════════════════════════════════
 function setAiStatus(type, text='') {
   const el = document.getElementById('aiStatus');
@@ -1086,88 +1086,120 @@ function setAiStatus(type, text='') {
   el.innerHTML = `${icon} <span>${esc(text)}</span>`;
 }
 
-async function runAI(imageData) {
-  const key = getApiKey();
-  if (!key || !imageData) return;
-  setAiStatus('loading', 'AIがタックルを識別中...');
-  const base64    = imageData.split(',')[1];
-  const mediaType = imageData.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 200,
-        messages: [{ role:'user', content:[
-          { type:'image', source:{ type:'base64', media_type:mediaType, data:base64 } },
-          { type:'text', text:'この画像はバス釣り用ルアー・ワームのパッケージです。パッケージに印刷されているテキストを最優先で読み取り、商品名とメーカー名を特定してください。テキストが読めない場合は形状・色・特徴から推測してください。以下のJSON形式のみで返してください：{"maker":"メーカー名","name":"商品名（サイズ・カラー含む）"}' }
-        ]}]
-      })
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(()=>({}));
-      throw new Error(err.error?.message || `HTTP ${res.status}`);
+// 既知メーカー一覧（大文字小文字を無視して照合）
+const KNOWN_MAKERS = [
+  'OSP','O.S.P','DEPS','Megabass','メガバス','Jackall','ジャッカル',
+  'Evergreen','EVERGREEN','エバーグリーン','DSTYLE','D-STYLE','IMA',
+  'NORIES','ノリーズ','ISSEI','一誠','TIEMCO','ティムコ',
+  'SHIMANO','シマノ','DAIWA','ダイワ','RAPALA','ラパラ',
+  'DUO','Lucky Craft','LUCKY CRAFT','ラッキークラフト',
+  'REINS','レインズ','ECOGEAR','エコギア','HIDE UP','HIDEUP',
+  'KEITECH','ケイテック','GETNET','ゲットネット','ZAPPU','ザップ',
+  'VARIVAS','バリバス','SUNLINE','サンライン','YO-ZURI','ヨーヅリ',
+  'MARIA','マリア','ZIP BAITS','ジップベイツ','TACKLE IN','タックルイン',
+  'IMAKATSU','イマカツ','BOTTOMUP','ボトムアップ','GANCRAFT','ガンクラフト',
+  'NITRO','ORACLE','RAID JAPAN','レイドジャパン','BAIT BREATH','ベイトブレス',
+  'DAMIKI','JACKALL','ZOOM','BERKLEY','バークレー','OWNER','オーナー',
+];
+
+function parseOcrText(rawText) {
+  const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 1);
+
+  let maker = '';
+  let makerLineIdx = -1;
+
+  // メーカー名を既知リストで探す
+  for (const known of KNOWN_MAKERS) {
+    const idx = lines.findIndex(l => l.toLowerCase().includes(known.toLowerCase()));
+    if (idx !== -1) {
+      maker = known;
+      makerLineIdx = idx;
+      break;
     }
-    const data = await res.json();
-    const text = (data.content?.[0]?.text || '').trim();
-    let maker='', name=text;
-    try {
-      const json = JSON.parse(text.replace(/^```json\s*|```\s*$/g,'').trim());
-      maker = (json.maker||'').trim();
-      name  = (json.name ||'').trim();
-    } catch(_) {}
+  }
+
+  // 商品名候補: メーカー行を除いた残りから意味のある行を結合
+  const nameLines = lines.filter((_, i) => i !== makerLineIdx)
+    .filter(l => l.length > 2 && !/^[\d\s\-\.\/\\|]+$/.test(l));  // 数字・記号のみ行は除外
+
+  // 上位2行を結合（サイズやカラーを含めるため）
+  const name = nameLines.slice(0, 2).join(' ').trim();
+
+  return { maker, name: name || lines[0] || '' };
+}
+
+async function callVisionApi(imageData, key) {
+  const base64 = imageData.split(',')[1];
+  const res = await fetch(
+    `https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(key)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requests: [{
+          image: { content: base64 },
+          features: [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }],
+          imageContext: { languageHints: ['ja', 'en'] },
+        }]
+      })
+    }
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  const errDetail = data.responses?.[0]?.error;
+  if (errDetail) throw new Error(errDetail.message || 'Vision API エラー');
+  return data.responses?.[0]?.fullTextAnnotation?.text
+      || data.responses?.[0]?.textAnnotations?.[0]?.description
+      || '';
+}
+
+async function runVision(imageData) {
+  const key = getVisionKey();
+  if (!key || !imageData) return;
+  setAiStatus('loading', 'OCRでテキストを読み取り中...');
+  try {
+    const rawText = await callVisionApi(imageData, key);
+    if (!rawText.trim()) {
+      setAiStatus('error', 'テキストを検出できませんでした。写真を撮り直してください。');
+      return;
+    }
+    const { maker, name } = parseOcrText(rawText);
     document.getElementById('itemMaker').value = maker;
     document.getElementById('itemName').value  = name;
-    setAiStatus('success', `AI判定: ${[maker,name].filter(Boolean).join(' / ')}`);
+    setAiStatus('success', `OCR完了: ${[maker, name].filter(Boolean).join(' / ')}`);
   } catch(err) {
-    setAiStatus('error', 'AI判定に失敗: ' + err.message);
+    setAiStatus('error', 'OCR読み取りに失敗: ' + err.message);
   }
 }
 
-async function runPendingAI() {
-  const key = getApiKey();
-  if (!key) { alert('APIキーを設定してください'); return; }
+async function runPendingVision() {
+  const key = getVisionKey();
+  if (!key) { alert('Google Vision APIキーを設定してください'); return; }
   const pending = items.filter(i => i.pendingAI && i.imageData);
-  if (!pending.length) { alert('判定待ちのアイテムはありません'); return; }
+  if (!pending.length) { alert('読み取り待ちのアイテムはありません'); return; }
   const btn = document.getElementById('runPendingBtn');
-  btn.textContent='判定中...'; btn.disabled=true;
+  btn.textContent = '読み取り中...'; btn.disabled = true;
   for (const item of pending) {
     try {
-      const base64    = item.imageData.split(',')[1];
-      const mediaType = item.imageData.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
-        body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:200, messages:[{ role:'user', content:[
-          { type:'image', source:{ type:'base64', media_type:mediaType, data:base64 } },
-          { type:'text', text:'この画像はバス釣り用ルアー・ワームのパッケージです。パッケージに印刷されているテキストを最優先で読み取り、商品名とメーカー名を特定してください。テキストが読めない場合は形状・色・特徴から推測してください。以下のJSON形式のみで返してください：{"maker":"メーカー名","name":"商品名（サイズ・カラー含む）"}' }
-        ]}]})
-      });
-      if (res.ok) {
-        const d = await res.json();
-        const text = (d.content?.[0]?.text||'').trim();
-        try {
-          const json = JSON.parse(text.replace(/^```json\s*|```\s*$/g,'').trim());
-          if (json.maker) item.maker = json.maker.trim();
-          if (json.name)  item.name  = json.name.trim();
-        } catch(_) { if(text) item.name=text; }
+      const rawText = await callVisionApi(item.imageData, key);
+      if (rawText.trim()) {
+        const { maker, name } = parseOcrText(rawText);
+        if (maker) item.maker = maker;
+        if (name)  item.name  = name;
         item.pendingAI = false;
         await dbPut(item);
       }
-    } catch(_) {}
+    } catch(_) { /* 失敗したアイテムは pending のまま */ }
   }
   items = await dbAll();
   items.forEach(migrateLegacyItem);
   renderGrid();
   updatePendingSection();
-  btn.textContent='AI判定を実行'; btn.disabled=false;
-  alert('AI判定が完了しました');
+  btn.textContent = 'OCR読み取りを実行'; btn.disabled = false;
+  alert('OCR読み取りが完了しました');
 }
 
 function updatePendingSection() {
@@ -1211,7 +1243,7 @@ function updateLocBtns() {
 async function saveItem() {
   const name = document.getElementById('itemName').value.trim();
   if (!name) { alert('商品名を入力してください'); return; }
-  const pendingAI = !!(capturedData && (!isOnline || !getApiKey()));
+  const pendingAI = !!(capturedData && (!isOnline || !getVisionKey()));
   const item = {
     name, maker: document.getElementById('itemMaker').value.trim(),
     bags: Math.max(0, parseInt(document.getElementById('itemBags').value)||0),
@@ -1270,7 +1302,7 @@ document.querySelectorAll('.filter-tab').forEach(tab => {
 });
 
 document.getElementById('settingsBtn').addEventListener('click', () => {
-  document.getElementById('apiKeyInput').value = getApiKey();
+  document.getElementById('visionKeyInput').value = getVisionKey();
   updatePendingSection();
   document.getElementById('settingsModal').classList.remove('hidden');
 });
@@ -1278,7 +1310,7 @@ document.getElementById('settingsCancelBtn').addEventListener('click', () => {
   document.getElementById('settingsModal').classList.add('hidden');
 });
 document.getElementById('settingsSaveBtn').addEventListener('click', () => {
-  setApiKey(document.getElementById('apiKeyInput').value.trim());
+  setVisionKey(document.getElementById('visionKeyInput').value.trim());
   document.getElementById('settingsModal').classList.add('hidden');
   alert('保存しました');
 });
@@ -1286,7 +1318,7 @@ document.getElementById('settingsModal').addEventListener('click', e => {
   if (e.target===document.getElementById('settingsModal'))
     document.getElementById('settingsModal').classList.add('hidden');
 });
-document.getElementById('runPendingBtn').addEventListener('click', runPendingAI);
+document.getElementById('runPendingBtn').addEventListener('click', runPendingVision);
 
 window.addEventListener('online',  () => { isOnline=true;  document.getElementById('offlineBanner').classList.add('hidden'); });
 window.addEventListener('offline', () => { isOnline=false; document.getElementById('offlineBanner').classList.remove('hidden'); });
